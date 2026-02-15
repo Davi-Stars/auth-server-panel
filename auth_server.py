@@ -326,6 +326,30 @@ def api_admin_expira(username):
     return jsonify({"ok": False, "msg": "Usuário não encontrado"}), 404
 
 
+# ---------- Recuperação: desbloquear conta sem estar logado ----------
+# Use quando bloquear o admin por engano. Defina RECOVERY_SECRET no Render (Environment).
+
+@app.route("/api/recovery/unblock", methods=["POST"])
+def api_recovery_unblock():
+    secret = os.environ.get("RECOVERY_SECRET", "").strip()
+    if not secret:
+        return jsonify({"ok": False, "msg": "Recuperação não configurada"}), 503
+    data = request.get_json() or request.form or {}
+    if (data.get("secret") or "").strip() != secret:
+        return jsonify({"ok": False, "msg": "Segredo inválido"}), 403
+    username = (data.get("username") or "").strip()
+    if not username:
+        return jsonify({"ok": False, "msg": "Informe o usuário"}), 400
+    users = _load_users()
+    for u in users:
+        if (u.get("username") or "").strip().lower() == username.strip().lower():
+            u["blocked"] = False
+            u["expires_at"] = None
+            _save_users(users)
+            return jsonify({"ok": True, "msg": f"Conta {username} desbloqueada. Faça login no painel."})
+    return jsonify({"ok": False, "msg": "Usuário não encontrado"}), 404
+
+
 # ---------- Setup: criar primeiro admin (quando não há usuários) ----------
 
 @app.route("/api/setup", methods=["GET"])
