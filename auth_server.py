@@ -271,6 +271,43 @@ def api_admin_desbloquear(username):
     return jsonify({"ok": False, "msg": "Usuário não encontrado"}), 404
 
 
+@app.route("/api/admin/users/<username>/delete", methods=["POST"])
+def api_admin_delete(username):
+    _, err = _require_admin()
+    if err:
+        return err
+    users = _load_users()
+    before = len(users)
+    users = [u for u in users if (u.get("username") or "").strip().lower() != username.strip().lower()]
+    if len(users) == before:
+        return jsonify({"ok": False, "msg": "Usuário não encontrado"}), 404
+    _save_users(users)
+    tokens = _load_tokens()
+    to_del = [t for t, d in tokens.items() if (d.get("username") or "").lower() == username.strip().lower()]
+    for t in to_del:
+        del tokens[t]
+    _save_tokens(tokens)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/users/<username>/password", methods=["POST"])
+def api_admin_password(username):
+    _, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json() or {}
+    password = data.get("password") or ""
+    if not password:
+        return jsonify({"ok": False, "msg": "Senha obrigatória"}), 400
+    users = _load_users()
+    for u in users:
+        if (u.get("username") or "").strip().lower() == username.strip().lower():
+            u["password_hash"] = generate_password_hash(password, method="pbkdf2:sha256")
+            _save_users(users)
+            return jsonify({"ok": True})
+    return jsonify({"ok": False, "msg": "Usuário não encontrado"}), 404
+
+
 @app.route("/api/admin/users/<username>/expira", methods=["POST"])
 def api_admin_expira(username):
     _, err = _require_admin()
